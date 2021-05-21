@@ -1,0 +1,73 @@
+<?php
+
+/**
+ * @file
+ * Provides Intense images integration.
+ */
+
+use Drupal\Component\Utility\Html;
+
+/**
+ * Implements hook_library_info_alter().
+ */
+function intense_library_info_alter(&$libraries, $extension) {
+  if ($extension === 'intense' && (intense_libraries_get_path('intense') || intense_libraries_get_path('intense-images'))) {
+    $path = intense_libraries_get_path('intense') ?: intense_libraries_get_path('intense-images');
+    $libraries['intense']['js'] = ['/' . $path . '/intense.min.js' => []];
+  }
+}
+
+/**
+ * Implements hook_blazy_attach_alter().
+ */
+function intense_blazy_attach_alter(array &$load, $attach = []) {
+  if (!empty($attach['intense'])) {
+    $load['library'][] = 'intense/load';
+  }
+}
+
+/**
+ * Implements hook_blazy_lightboxes_alter().
+ */
+function intense_blazy_lightboxes_alter(array &$lightboxes) {
+  $lightboxes[] = 'intense';
+}
+
+/**
+ * Overrides variables for blazy.html.twig.
+ */
+function intense_preprocess_blazy(&$variables) {
+  $settings = $variables['settings'];
+  $intense = !empty($settings['media_switch']) && $settings['media_switch'] == 'intense';
+  // Intense accept captions within [data-attribute], satisfy.
+  if ($intense && isset($variables['captions']) && !empty($variables['captions']['lightbox'])) {
+    $caption = $variables['captions']['lightbox']['#markup'];
+    $dom = Html::load($caption);
+    foreach (['h2' => 'title', 'p' => 'caption'] as $tag => $attribute) {
+      if ($dom->getElementsByTagName($tag) && $dom->getElementsByTagName($tag)->item(0)) {
+        $variables['url_attributes']['data-' . $attribute] = strip_tags($dom->getElementsByTagName($tag)->item(0)->textContent);
+      }
+    }
+  }
+}
+
+/**
+ * Provides a wrapper to replace deprecated libraries_get_path() at ease.
+ *
+ * @todo replace with blazy_libraries_get_path() post blazy:8.x-2.0.
+ */
+function intense_libraries_get_path($name, $base_path = FALSE) {
+  return function_exists('blazy_libraries_get_path') ? blazy_libraries_get_path($name, $base_path) : FALSE;
+}
+
+/**
+ * Implements hook_help().
+ */
+function intense_help($route_name) {
+  if ($route_name == 'help.page.intense') {
+    $output = file_get_contents(dirname(__FILE__) . '/README.md');
+    // @todo remove check once Blazy has stable release.
+    return function_exists('blazy_parse_markdown') ? blazy_parse_markdown($output) : '<pre>' . $output . '</pre>';
+  }
+  return '';
+}
